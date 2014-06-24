@@ -28,34 +28,36 @@
 //  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #import "NSArray+CWSortedInsert.h"
-#import <objc/runtime.h>
+#import <objc/message.h>
 
 @implementation NSArray (CWSortedInsert)
 
 -(NSUInteger)indexForInsertingObject:(id)anObject sortedUsingfunction:(NSInteger (*)(id, id, void *))compare context:(void*)context;
 {
-  NSUInteger index = 0;
-	NSUInteger topIndex = [self count];
-  IMP objectAtIndexImp = [self methodForSelector:@selector(objectAtIndex:)];
-  while (index < topIndex) {
-    NSUInteger midIndex = (index + topIndex) / 2;
-    id testObject = objectAtIndexImp(self, @selector(objectAtIndex:), midIndex);
-    if (compare(anObject, testObject, context) > 0) {
-      index = midIndex + 1;
-    } else {
-      topIndex = midIndex;
+    NSUInteger index = 0;
+    NSUInteger topIndex = [self count];
+    IMP objectAtIndexImp = [self methodForSelector:@selector(objectAtIndex:)];
+    while (index < topIndex) {
+        NSUInteger midIndex = (index + topIndex) / 2;
+        id testObject = objectAtIndexImp(self, @selector(objectAtIndex:), midIndex);
+        if (compare(anObject, testObject, context) > 0) {
+            index = midIndex + 1;
+        } else {
+            topIndex = midIndex;
+        }
     }
-  }
-  return index;
+    return index;
 }
 
-static NSComparisonResult cw_SelectorCompare(id a, id b, void* aSelector) {
-	return (NSComparisonResult)objc_msgSend(a, (SEL)aSelector, b);
+static NSComparisonResult cw_SelectorCompare(id a, id b, void* aSelector)
+{
+    NSComparisonResult (*compareFunction) (id, SEL, id) = (NSComparisonResult(*)(id, SEL, id))objc_msgSend;
+    return compareFunction(a, (SEL)aSelector, b);
 }
 
 -(NSUInteger)indexForInsertingObject:(id)anObject sortedUsingSelector:(SEL)aSelector;
 {
-	return [self indexForInsertingObject:anObject sortedUsingfunction:&cw_SelectorCompare context:aSelector];
+    return [self indexForInsertingObject:anObject sortedUsingfunction:&cw_SelectorCompare context:aSelector];
 }
 
 static IMP cw_compareObjectToObjectImp = NULL;
@@ -63,24 +65,25 @@ static IMP cw_ascendingImp = NULL;
 
 +(void)initialize;
 {
-  cw_compareObjectToObjectImp = [NSSortDescriptor instanceMethodForSelector:@selector(compareObject:toObject:)];
-	cw_ascendingImp = [NSSortDescriptor instanceMethodForSelector:@selector(ascending)];
+    cw_compareObjectToObjectImp = [NSSortDescriptor instanceMethodForSelector:@selector(compareObject:toObject:)];
+    cw_ascendingImp = [NSSortDescriptor instanceMethodForSelector:@selector(ascending)];
 }
 
-static NSComparisonResult cw_DescriptorCompare(id a, id b, void* descriptors) {
-	NSComparisonResult result = NSOrderedSame;
-  for (NSSortDescriptor* sortDescriptor in (NSArray*)descriptors) {
-		result = (NSComparisonResult)cw_compareObjectToObjectImp(sortDescriptor, @selector(compareObject:toObject:), a, b);
-    if (result != NSOrderedSame) {
-      break;
+static NSComparisonResult cw_DescriptorCompare(id a, id b, void* descriptors)
+{
+    NSComparisonResult result = NSOrderedSame;
+    for (NSSortDescriptor* sortDescriptor in (__bridge NSArray*)descriptors) {
+        result = (NSComparisonResult)cw_compareObjectToObjectImp(sortDescriptor, @selector(compareObject:toObject:), a, b);
+        if (result != NSOrderedSame) {
+            break;
+        }
     }
-  }
-  return result;
+    return result;
 }
 
 -(NSUInteger)indexForInsertingObject:(id)anObject sortedUsingDescriptors:(NSArray*)descriptors;
 {
-	return [self indexForInsertingObject:anObject sortedUsingfunction:&cw_DescriptorCompare context:descriptors];
+	return [self indexForInsertingObject:anObject sortedUsingfunction:&cw_DescriptorCompare context:(__bridge void *)(descriptors)];
 }
 
 @end
@@ -90,8 +93,8 @@ static NSComparisonResult cw_DescriptorCompare(id a, id b, void* descriptors) {
 
 -(void)insertObject:(id)anObject sortedUsingfunction:(NSInteger (*)(id, id, void *))compare context:(void*)context;
 {
-	NSUInteger index = [self indexForInsertingObject:anObject sortedUsingfunction:compare context:context];
-  [self insertObject:anObject atIndex:index];
+    NSUInteger index = [self indexForInsertingObject:anObject sortedUsingfunction:compare context:context];
+    [self insertObject:anObject atIndex:index];
 }
 
 -(void)insertObject:(id)anObject sortedUsingSelector:(SEL)aSelector;
@@ -102,8 +105,8 @@ static NSComparisonResult cw_DescriptorCompare(id a, id b, void* descriptors) {
 
 -(void)insertObject:(id)anObject sortedUsingDescriptors:(NSArray*)descriptors;
 {
-	NSUInteger index = [self indexForInsertingObject:anObject sortedUsingDescriptors:descriptors];
-  [self insertObject:anObject atIndex:index];
+    NSUInteger index = [self indexForInsertingObject:anObject sortedUsingDescriptors:descriptors];
+    [self insertObject:anObject atIndex:index];
 }
 
 @end
